@@ -307,7 +307,8 @@ async function renderCharts() {
     <select id="chartCombo" onchange="updateChartInfo();renderChart()">${comboOptions || '<option>暂无数据</option>'}</select>
     <select id="chartType" onchange="updateChartInfo();renderChart()">
       <option value="trend">成绩趋势</option>
-      <option value="dist">距离分布</option>
+      <option value="dist">类型分布</option>
+      <option value="stroke">泳姿统计</option>
     </select>
   `;
   $('#chartFilters').innerHTML = filterHtml;
@@ -338,7 +339,8 @@ async function renderCharts() {
 function updateChartInfo() {
   const type = $('#chartType')?.value || 'trend';
   const combo = $('#chartCombo')?.value || '';
-  const title = type === 'trend' ? '成绩趋势' : '距离分布';
+  const titles = { trend: '成绩趋势', dist: '记录类型分布', stroke: '泳姿统计' };
+  const title = titles[type] || '图表';
   let subtitle = '选择泳姿和距离查看成长曲线';
   if (combo && combo !== '暂无数据') {
     const [s,d] = combo.split('-');
@@ -376,14 +378,84 @@ function renderChart() {
     if (type === 'dist') {
       const distData = {};
       data.forEach(r => { distData[r.type] = (distData[r.type]||0) + 1; });
+      const total = data.length;
+      const pieData = Object.entries(distData).map(([k,v]) => ({
+        name: typeLabel(k), value: v, pct: ((v/total)*100).toFixed(1)
+      }));
+      const colorMap = { '比赛': '#388989', '训练': '#56a8b8', '测试': '#e2a454' };
+
       chartInstance.setOption({
         animation: false,
-        tooltip: { trigger: 'item', appendToBody: true },
-        color: ['#3d8b8a','#5ba3a1','#c9984a'],
+        tooltip: {
+          trigger: 'item', appendToBody: true,
+          backgroundColor: 'rgba(30,41,51,0.92)',
+          borderColor: 'transparent',
+          textStyle: { color: '#fff', fontSize: 13 },
+          formatter: function(p) {
+            return `<div style="font-weight:700;margin-bottom:4px;">${p.name}</div>` +
+                   `<div>共 <span style="font-size:15px;font-weight:700;color:#5ba3a1;">${p.value}</span> 条</div>` +
+                   `<div>占比 <span style="font-size:15px;font-weight:700;color:#e2a454;">${p.data.pct}%</span></div>`;
+          }
+        },
+        legend: {
+          bottom: 0, left: 'center',
+          icon: 'circle', itemWidth: 10, itemHeight: 10,
+          itemGap: 20,
+          textStyle: { color: '#7a9199', fontSize: 12 }
+        },
+        color: pieData.map(d => colorMap[d.name] || '#3d8b8a'),
         series: [{
-          type: 'pie', radius: ['40%','70%'],
-          data: Object.entries(distData).map(([k,v]) => ({ name:typeLabel(k), value:v })),
-          label: { color: '#1e2933', fontSize: 13, fontWeight: 600 }
+          type: 'pie',
+          radius: ['48%','72%'],
+          center: ['50%','45%'],
+          data: pieData,
+          itemStyle: { borderRadius: 6, borderColor: '#fff', borderWidth: 3 },
+          label: { show: false },
+          labelLine: { show: false },
+          emphasis: {
+            itemStyle: { shadowBlur: 12, shadowOffsetX: 0, shadowColor: 'rgba(0,0,0,0.15)' }
+          }
+        }]
+      });
+    } else if (type === 'stroke') {
+      const strokeData = {};
+      data.forEach(r => { strokeData[r.stroke] = (strokeData[r.stroke]||0) + 1; });
+      const total = data.length;
+      const pieData = Object.entries(strokeData).map(([k,v]) => ({
+        name: k, value: v, pct: ((v/total)*100).toFixed(1)
+      }));
+
+      chartInstance.setOption({
+        animation: false,
+        tooltip: {
+          trigger: 'item', appendToBody: true,
+          backgroundColor: 'rgba(30,41,51,0.92)',
+          borderColor: 'transparent',
+          textStyle: { color: '#fff', fontSize: 13 },
+          formatter: function(p) {
+            return `<div style="font-weight:700;margin-bottom:4px;">${p.name}</div>` +
+                   `<div>共 <span style="font-size:15px;font-weight:700;color:#5ba3a1;">${p.value}</span> 条</div>` +
+                   `<div>占比 <span style="font-size:15px;font-weight:700;color:#e2a454;">${p.data.pct}%</span></div>`;
+          }
+        },
+        legend: {
+          bottom: 0, left: 'center',
+          icon: 'circle', itemWidth: 10, itemHeight: 10,
+          itemGap: 20,
+          textStyle: { color: '#7a9199', fontSize: 12 }
+        },
+        color: ['#388989','#56a8b8','#5ba3a1','#e2a454','#c9984a'],
+        series: [{
+          type: 'pie',
+          radius: ['48%','72%'],
+          center: ['50%','45%'],
+          data: pieData,
+          itemStyle: { borderRadius: 6, borderColor: '#fff', borderWidth: 3 },
+          label: { show: false },
+          labelLine: { show: false },
+          emphasis: {
+            itemStyle: { shadowBlur: 12, shadowOffsetX: 0, shadowColor: 'rgba(0,0,0,0.15)' }
+          }
         }]
       });
     } else {
