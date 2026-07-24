@@ -978,12 +978,14 @@ async function syncToCloud() {
     const records = await db.records.toArray();
     const achievements = await db.achievements.toArray();
 
-    // Push swimmers
-    for (const s of swimmers) {
-      const { error } = await supabaseClient
-        .from('swimmers')
-        .upsert({ user_id: syncKey, name: s.name, birth_date: s.birthDate, gender: s.gender, club: s.club }, { onConflict: 'user_id' });
-      if (error) throw error;
+    // Push swimmers (delete all then insert)
+    const { error: delSwimErr } = await supabaseClient.from('swimmers').delete().eq('user_id', syncKey);
+    if (delSwimErr) throw delSwimErr;
+    if (swimmers.length > 0) {
+      const { error: insSwimErr } = await supabaseClient.from('swimmers').insert(
+        swimmers.map(s => ({ user_id: syncKey, name: s.name, birth_date: s.birthDate, gender: s.gender, club: s.club }))
+      );
+      if (insSwimErr) throw insSwimErr;
     }
 
     // Push records (delete all then insert)
