@@ -1,0 +1,188 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+  <meta name="theme-color" content="#0d9488">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <title>SwimGrowth</title>
+  <link rel="manifest" href="manifest.json">
+  <link rel="apple-touch-icon" href="icons/icon-512.jpg">
+  <link rel="stylesheet" href="css/style.css">
+  <script src="https://cdn.jsdelivr.net/npm/dexie@3.2.4/dist/dexie.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/echarts@5.5.0/dist/echarts.min.js"></script>
+</head>
+<body>
+  <!-- Install Banner -->
+  <div class="install-banner" id="installBanner">
+    <p>添加到主屏幕，像 App 一样使用</p>
+    <button class="btn btn-sm" id="installBtn">安装</button>
+  </div>
+
+  <!-- Header -->
+  <header class="app-header">
+    <h1 id="pageTitle">SwimGrowth</h1>
+    <div class="subtitle" id="pageSubtitle">记录每一次进步</div>
+  </header>
+
+  <!-- Page: Home -->
+  <div class="page active" id="page-home">
+    <div id="homeContent"></div>
+  </div>
+
+  <!-- Page: Records -->
+  <div class="page" id="page-records">
+    <div id="recordsContent"></div>
+  </div>
+
+  <!-- Page: Charts -->
+  <div class="page" id="page-charts">
+    <div id="chartsContent"></div>
+  </div>
+
+  <!-- Page: Settings -->
+  <div class="page" id="page-settings">
+    <div id="settingsContent"></div>
+  </div>
+
+  <!-- Tab Bar -->
+  <nav class="tab-bar">
+    <button class="tab-item active" data-tab="home">
+      <span class="tab-icon">&#127968;</span>
+      <span>首页</span>
+    </button>
+    <button class="tab-item" data-tab="records">
+      <span class="tab-icon">&#128221;</span>
+      <span>记录</span>
+    </button>
+    <button class="tab-item" data-tab="charts">
+      <span class="tab-icon">&#128200;</span>
+      <span>图表</span>
+    </button>
+    <button class="tab-item" data-tab="settings">
+      <span class="tab-icon">&#9881;&#65039;</span>
+      <span>设置</span>
+    </button>
+  </nav>
+
+  <!-- Modal: Add/Edit Record -->
+  <div class="modal-overlay" id="recordModal">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h2 id="modalTitle">添加记录</h2>
+        <button class="modal-close" id="modalClose">&times;</button>
+      </div>
+      <form id="recordForm">
+        <input type="hidden" id="recordId">
+        <div class="form-group">
+          <label>记录类型</label>
+          <div class="form-row-3">
+            <label style="display:flex;align-items:center;gap:4px;cursor:pointer;font-size:0.85rem;font-weight:500;">
+              <input type="radio" name="type" value="competition" checked style="width:auto;"> 比赛
+            </label>
+            <label style="display:flex;align-items:center;gap:4px;cursor:pointer;font-size:0.85rem;font-weight:500;">
+              <input type="radio" name="type" value="training" style="width:auto;"> 训练
+            </label>
+            <label style="display:flex;align-items:center;gap:4px;cursor:pointer;font-size:0.85rem;font-weight:500;">
+              <input type="radio" name="type" value="test" style="width:auto;"> 测试
+            </label>
+          </div>
+        </div>
+        <div class="form-group">
+          <label for="recDate">日期</label>
+          <input type="date" id="recDate" required>
+        </div>
+        <div class="form-group">
+          <label for="recEvent">赛事/训练名称</label>
+          <input type="text" id="recEvent" placeholder="例如：2025 全国游泳锦标赛">
+        </div>
+        <div class="form-row">
+          <div class="form-group" style="margin-bottom:0;">
+            <label for="recStroke">泳姿</label>
+            <select id="recStroke" required>
+              <option value="自由泳">自由泳</option>
+              <option value="蛙泳">蛙泳</option>
+              <option value="仰泳">仰泳</option>
+              <option value="蝶泳">蝶泳</option>
+              <option value="混合泳">混合泳</option>
+            </select>
+          </div>
+          <div class="form-group" style="margin-bottom:0;">
+            <label for="recDistance">距离</label>
+            <select id="recDistance" required>
+              <option value="50">50m</option>
+              <option value="100">100m</option>
+              <option value="200">200m</option>
+              <option value="400">400m</option>
+              <option value="800">800m</option>
+              <option value="1500">1500m</option>
+            </select>
+          </div>
+        </div>
+        <div class="form-group">
+          <label for="recTime">成绩（分:秒.毫秒，如 0:38.52）</label>
+          <input type="text" id="recTime" placeholder="0:38.52" pattern="\d+:\d{2}\.\d{2}" required>
+        </div>
+        <div class="form-row">
+          <div class="form-group" style="margin-bottom:0;">
+            <label for="recRank">名次</label>
+            <input type="number" id="recRank" min="1" placeholder="可选">
+          </div>
+          <div class="form-group" style="margin-bottom:0;">
+            <label for="recGroup">组别</label>
+            <input type="text" id="recGroup" placeholder="例如：U12">
+          </div>
+        </div>
+        <div class="form-group">
+          <label for="recVenue">场地</label>
+          <input type="text" id="recVenue" placeholder="例如：新加坡国家游泳馆">
+        </div>
+        <div class="form-group">
+          <label for="recNotes">备注</label>
+          <textarea id="recNotes" placeholder="记录这次比赛的感受或教练的反馈..."></textarea>
+        </div>
+        <button type="submit" class="btn btn-primary btn-block">保存记录</button>
+      </form>
+    </div>
+  </div>
+
+  <!-- Modal: Edit Swimmer -->
+  <div class="modal-overlay" id="swimmerModal">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h2>运动员信息</h2>
+        <button class="modal-close" id="swimmerModalClose">&times;</button>
+      </div>
+      <form id="swimmerForm">
+        <div class="form-group">
+          <label for="swimName">姓名</label>
+          <input type="text" id="swimName" required placeholder="孩子姓名">
+        </div>
+        <div class="form-group">
+          <label for="swimBirth">生日</label>
+          <input type="date" id="swimBirth">
+        </div>
+        <div class="form-group">
+          <label for="swimGender">性别</label>
+          <select id="swimGender">
+            <option value="">请选择</option>
+            <option value="男">男</option>
+            <option value="女">女</option>
+          </select>
+        </div>
+        <div class="form-group">
+          <label for="swimClub">所属俱乐部</label>
+          <input type="text" id="swimClub" placeholder="例如：Singapore Swimming Club">
+        </div>
+        <button type="submit" class="btn btn-primary btn-block">保存</button>
+      </form>
+    </div>
+  </div>
+
+  <!-- Toast -->
+  <div class="toast" id="toast"></div>
+
+  <script src="js/app.js"></script>
+</body>
+</html>
