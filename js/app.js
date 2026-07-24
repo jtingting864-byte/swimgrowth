@@ -23,7 +23,7 @@ let supabaseClient = null;
 
 // --- Constants ---
 const STROKES = ['自由泳','蛙泳','仰泳','蝶泳','混合泳'];
-const DISTANCES = [50,100,200,400,800,1500];
+const DISTANCES = [15,25,50,100,200,400,800,1500];
 const BADGES = [
   { id:'first_record', emoji:'🏊', name:'初出茅庐', desc:'添加第一条记录' },
   { id:'first_comp', emoji:'🏆', name:'初试锋芒', desc:'添加第一条比赛记录' },
@@ -383,16 +383,16 @@ function renderChart() {
   db.records.where('swimmerId').equals(currentSwimmer.id).toArray().then(all => {
     const data = all.filter(r => r.stroke === stroke && r.distance === parseInt(distance,10))
       .sort((a,b) => new Date(a.date) - new Date(b.date));
-    if (!data.length) return;
 
     const dom = $('#mainChart');
     if (chartInstance) chartInstance.dispose();
     chartInstance = echarts.init(dom, null, { renderer: 'svg' });
 
     if (type === 'dist') {
+      if (!all.length) return;
       const distData = {};
-      data.forEach(r => { distData[r.type] = (distData[r.type]||0) + 1; });
-      const total = data.length;
+      all.forEach(r => { distData[r.type] = (distData[r.type]||0) + 1; });
+      const total = all.length;
       const pieData = Object.entries(distData).map(([k,v]) => ({
         name: typeLabel(k), value: v, pct: ((v/total)*100).toFixed(1)
       }));
@@ -432,9 +432,10 @@ function renderChart() {
         }]
       });
     } else if (type === 'stroke') {
+      if (!all.length) return;
       const strokeData = {};
-      data.forEach(r => { strokeData[r.stroke] = (strokeData[r.stroke]||0) + 1; });
-      const total = data.length;
+      all.forEach(r => { strokeData[r.stroke] = (strokeData[r.stroke]||0) + 1; });
+      const total = all.length;
       const pieData = Object.entries(strokeData).map(([k,v]) => ({
         name: k, value: v, pct: ((v/total)*100).toFixed(1)
       }));
@@ -473,6 +474,7 @@ function renderChart() {
         }]
       });
     } else {
+      if (!data.length) return;
       // 简化日期格式：只显示月/日
       const dates = data.map(r => {
         const d = new Date(r.date);
