@@ -586,6 +586,20 @@ async function renderSettings() {
   </div>`;
 
   html += `<div class="card">
+    <h3><span class="icon">🏅</span>成就说明</h3>
+    <div style="font-size:0.82rem;color:var(--text-secondary);line-height:1.7;">
+      <div style="display:flex;justify-content:space-between;padding:0.35rem 0;border-bottom:1px solid var(--border);"><span>🏊 初出茅庐</span><span>添加第 1 条记录</span></div>
+      <div style="display:flex;justify-content:space-between;padding:0.35rem 0;border-bottom:1px solid var(--border);"><span>🏆 初试锋芒</span><span>添加第 1 条比赛记录</span></div>
+      <div style="display:flex;justify-content:space-between;padding:0.35rem 0;border-bottom:1px solid var(--border);"><span>⚡ 突破自我</span><span>打破个人最佳成绩（PB）</span></div>
+      <div style="display:flex;justify-content:space-between;padding:0.35rem 0;border-bottom:1px solid var(--border);"><span>🔥 一周坚持</span><span>连续 7 天有训练记录</span></div>
+      <div style="display:flex;justify-content:space-between;padding:0.35rem 0;border-bottom:1px solid var(--border);"><span>📊 半百记录</span><span>累计 50 条记录</span></div>
+      <div style="display:flex;justify-content:space-between;padding:0.35rem 0;border-bottom:1px solid var(--border);"><span>💯 百次突破</span><span>累计 100 条记录</span></div>
+      <div style="display:flex;justify-content:space-between;padding:0.35rem 0;border-bottom:1px solid var(--border);"><span>🌊 全能选手</span><span>记录过 3 种以上泳姿</span></div>
+      <div style="display:flex;justify-content:space-between;padding:0.35rem 0;"><span>🏁 长短皆宜</span><span>记录过 3 种以上距离</span></div>
+    </div>
+  </div>`;
+
+  html += `<div class="card">
     <h3><span class="icon">💾</span>数据管理</h3>
     <div class="setting-row">
       <div><div class="setting-label">导出 Excel</div><div class="setting-desc">将所有记录导出为 Excel 表格</div></div>
