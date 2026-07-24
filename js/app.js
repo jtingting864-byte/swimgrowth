@@ -14,6 +14,12 @@ let chartInstance = null;
 let recordFilter = 'all';
 let editingRecordId = null;
 let deferredPrompt = null;
+let syncKey = localStorage.getItem('swimgrowth_sync_key') || '';
+
+// --- Supabase ---
+const SUPABASE_URL = 'https://tpnjuovywhpzfkjacjkh.supabase.co';
+const SUPABASE_KEY = 'sb_publishable_12I7Pc_UxjDm21_igAYrgQ_Ee0SXUKl';
+let supabaseClient = null;
 
 // --- Constants ---
 const STROKES = ['自由泳','蛙泳','仰泳','蝶泳','混合泳'];
@@ -133,6 +139,14 @@ async function init() {
   // Forms
   $('#recordForm').addEventListener('submit', saveRecord);
   $('#swimmerForm').addEventListener('submit', saveSwimmer);
+
+  // Init Supabase client
+  if (window.supabase && window.supabase.createClient) {
+    supabaseClient = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
+  }
+
+  // Auto sync on startup
+  await autoSync();
 
   // Initial render
   showTab('home');
@@ -552,6 +566,23 @@ async function renderSettings() {
     <button class="btn btn-secondary btn-block" onclick="openSwimmerModal()" style="margin-top:0.8rem;">编辑信息</button>
   </div>`;
 
+  // Cloud Sync
+  html += `<div class="card" style="border:2px solid var(--teal);">
+    <h3><span class="icon">&#9729;&#65039;</span>云同步</h3>
+    <p style="font-size:0.85rem;color:var(--text-secondary);margin-bottom:0.8rem;">数据自动备份到云端，换手机也不怕丢失</p>
+    <div class="setting-row">
+      <div>
+        <div class="setting-label">同步密钥</div>
+        <div class="setting-desc" style="font-family:monospace;font-weight:700;color:var(--teal);font-size:0.9rem;">${syncKey}</div>
+      </div>
+      <button class="btn btn-sm btn-secondary" onclick="changeSyncKey()">切换</button>
+    </div>
+    <div class="setting-row" style="border-bottom:none;">
+      <div><div class="setting-label">手动同步</div><div class="setting-desc">立即推送当前数据到云端</div></div>
+      <button class="btn btn-sm btn-primary" onclick="manualSync()">同步</button>
+    </div>
+  </div>`;
+
   html += `<div class="card">
     <h3><span class="icon">💾</span>数据管理</h3>
     <div class="setting-row">
@@ -571,7 +602,7 @@ async function renderSettings() {
 
   html += `<div class="card">
     <h3><span class="icon">📱</span>关于</h3>
-    <p style="font-size:0.85rem;color:var(--text-secondary);">SwimGrowth v1.0<br>一个纯手动的游泳成长记录工具。<br>所有数据存储在本地，离线可用。</p>
+    <p style="font-size:0.85rem;color:var(--text-secondary);">SwimGrowth v1.0<br>一个游泳成长记录工具。<br>数据自动云同步，离线也可用。</p>
   </div>`;
 
   container.innerHTML = html;
@@ -638,6 +669,7 @@ async function saveRecord(e) {
   }
 
   await checkAchievements();
+  await syncToCloud();
   closeRecordModal();
   showTab('home');
 }
@@ -645,6 +677,7 @@ async function saveRecord(e) {
 async function deleteRecord(id) {
   if (!confirm('确定要删除这条记录吗？')) return;
   await db.records.delete(id);
+  await syncToCloud();
   toast('记录已删除');
   renderRecords();
 }
@@ -834,6 +867,166 @@ async function checkAchievements() {
     else { cur = 1; }
   }
   if (maxStreak >= 7 && !has('streak_7')) await add('streak_7');
+}
+
+// --- Cloud Sync ---
+function generateSyncKey() {
+  const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
+  let key = '';
+  for (let i = 0; i < 8; i++) key += chars[Math.floor(Math.random() * chars.length)];
+  return key;
+}
+
+async function autoSync() {
+  if (!supabaseClient) return;
+  if (!syncKey) {
+    syncKey = generateSyncKey();
+    localStorage.setItem('swimgrowth_sync_key', syncKey);
+  }
+  await syncFromCloud();
+}
+
+async function syncToCloud() {
+  if (!supabaseClient || !syncKey) return;
+  try {
+    const swimmers = await db.swimmers.toArray();
+    const records = await db.records.toArray();
+    const achievements = await db.achievements.toArray();
+
+    // Push swimmers
+    for (const s of swimmers) {
+      const { error } = await supabaseClient
+        .from('swimmers')
+        .upsert({ user_id: syncKey, name: s.name, birth_date: s.birthDate, gender: s.gender, club: s.club }, { onConflict: 'user_id' });
+    }
+
+    // Push records (delete all then insert)
+    await supabaseClient.from('records').delete().eq('user_id', syncKey);
+    if (records.length > 0) {
+      const recs = records.map(r => ({
+        user_id: syncKey,
+        swimmer_id: r.swimmerId,
+        type: r.type,
+        date: r.date,
+        event_name: r.eventName,
+        stroke: r.stroke,
+        distance: r.distance,
+        time: r.time,
+        rank: r.rank,
+        group: r.group,
+        venue: r.venue,
+        notes: r.notes
+      }));
+      await supabaseClient.from('records').insert(recs);
+    }
+
+    // Push achievements
+    await supabaseClient.from('achievements').delete().eq('user_id', syncKey);
+    if (achievements.length > 0) {
+      const achs = achievements.map(a => ({
+        user_id: syncKey,
+        badge_id: a.badgeId,
+        badge_name: a.badgeName,
+        date: a.date
+      }));
+      await supabaseClient.from('achievements').insert(achs);
+    }
+  } catch (err) {
+    console.error('Sync to cloud failed:', err);
+  }
+}
+
+async function syncFromCloud() {
+  if (!supabaseClient || !syncKey) return;
+  try {
+    // Pull swimmers
+    const { data: swimmersData, error: swimmersErr } = await supabaseClient
+      .from('swimmers').select('*').eq('user_id', syncKey);
+    if (swimmersErr) throw swimmersErr;
+
+    // Pull records
+    const { data: recordsData, error: recordsErr } = await supabaseClient
+      .from('records').select('*').eq('user_id', syncKey);
+    if (recordsErr) throw recordsErr;
+
+    // Pull achievements
+    const { data: achievementsData, error: achievementsErr } = await supabaseClient
+      .from('achievements').select('*').eq('user_id', syncKey);
+    if (achievementsErr) throw achievementsErr;
+
+    // If cloud has data, merge to local
+    if (swimmersData && swimmersData.length > 0) {
+      await db.swimmers.clear();
+      for (const s of swimmersData) {
+        await db.swimmers.add({
+          name: s.name || '小泳者',
+          birthDate: s.birth_date || '',
+          gender: s.gender || '',
+          club: s.club || ''
+        });
+      }
+    }
+
+    if (recordsData && recordsData.length > 0) {
+      await db.records.clear();
+      const recs = recordsData.map(r => ({
+        swimmerId: r.swimmer_id || 1,
+        type: r.type,
+        date: r.date,
+        eventName: r.event_name,
+        stroke: r.stroke,
+        distance: r.distance,
+        time: r.time,
+        rank: r.rank,
+        group: r.group,
+        venue: r.venue,
+        notes: r.notes,
+        createdAt: new Date().toISOString()
+      }));
+      await db.records.bulkAdd(recs);
+    }
+
+    if (achievementsData && achievementsData.length > 0) {
+      await db.achievements.clear();
+      const achs = achievementsData.map(a => ({
+        swimmerId: 1,
+        badgeId: a.badge_id,
+        badgeName: a.badge_name,
+        date: a.date
+      }));
+      await db.achievements.bulkAdd(achs);
+    }
+
+    // Refresh currentSwimmer
+    const swimmers = await db.swimmers.toArray();
+    if (swimmers.length > 0) {
+      currentSwimmer = swimmers[0];
+    }
+  } catch (err) {
+    console.error('Sync from cloud failed:', err);
+  }
+}
+
+async function manualSync() {
+  if (!supabaseClient) { toast('云同步不可用'); return; }
+  toast('正在同步...');
+  await syncToCloud();
+  await syncFromCloud();
+  toast('同步完成');
+  showTab('home');
+}
+
+async function changeSyncKey() {
+  const newKey = prompt('请输入同步密钥（留空自动生成）：', syncKey);
+  if (newKey === null) return;
+  const key = newKey.trim() || generateSyncKey();
+  syncKey = key;
+  localStorage.setItem('swimgrowth_sync_key', syncKey);
+  toast('密钥已更新，正在同步...');
+  await syncFromCloud();
+  toast('同步完成');
+  renderSettings();
+  showTab('home');
 }
 
 // --- Boot ---
