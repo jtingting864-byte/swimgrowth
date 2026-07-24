@@ -568,23 +568,6 @@ async function renderSettings() {
     <button class="btn btn-secondary btn-block" onclick="openSwimmerModal()" style="margin-top:0.8rem;">编辑信息</button>
   </div>`;
 
-  // Cloud Sync
-  html += `<div class="card" style="border:2px solid var(--teal);">
-    <h3><span class="icon">&#9729;&#65039;</span>云同步</h3>
-    <p style="font-size:0.85rem;color:var(--text-secondary);margin-bottom:0.8rem;">数据自动备份到云端，换手机也不怕丢失</p>
-    <div class="setting-row">
-      <div>
-        <div class="setting-label">同步密钥</div>
-        <div class="setting-desc" style="font-family:monospace;font-weight:700;color:var(--teal);font-size:0.9rem;">${syncKey}</div>
-      </div>
-      <button class="btn btn-sm btn-secondary" onclick="changeSyncKey()">切换</button>
-    </div>
-    <div class="setting-row" style="border-bottom:none;">
-      <div><div class="setting-label">手动同步</div><div class="setting-desc">立即推送当前数据到云端</div></div>
-      <button class="btn btn-sm btn-primary" onclick="manualSync()">同步</button>
-    </div>
-  </div>`;
-
   html += `<div class="card">
     <h3><span class="icon">🏅</span>成就说明</h3>
     <div style="font-size:0.82rem;color:var(--text-secondary);line-height:1.7;">
@@ -614,11 +597,6 @@ async function renderSettings() {
       <div><div class="setting-label">清除所有数据</div><div class="setting-desc">删除所有记录和成就（不可恢复）</div></div>
       <button class="btn btn-sm btn-danger" onclick="clearAllData()">清除</button>
     </div>
-  </div>`;
-
-  html += `<div class="card">
-    <h3><span class="icon">📱</span>关于</h3>
-    <p style="font-size:0.85rem;color:var(--text-secondary);">SwimGrowth v1.0<br>一个游泳成长记录工具。<br>数据自动云同步，离线也可用。</p>
   </div>`;
 
   container.innerHTML = html;
