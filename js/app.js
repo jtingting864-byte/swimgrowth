@@ -800,6 +800,7 @@ async function importExcel(input) {
       await db.records.bulkAdd(newRecords);
     }
     await checkAchievements();
+    await syncToCloud();
     toast(`成功导入 ${newRecords.length} 条记录`);
     showTab('home');
   } catch (err) {
@@ -899,10 +900,12 @@ async function syncToCloud() {
       const { error } = await supabaseClient
         .from('swimmers')
         .upsert({ user_id: syncKey, name: s.name, birth_date: s.birthDate, gender: s.gender, club: s.club }, { onConflict: 'user_id' });
+      if (error) throw error;
     }
 
     // Push records (delete all then insert)
-    await supabaseClient.from('records').delete().eq('user_id', syncKey);
+    const { error: delRecErr } = await supabaseClient.from('records').delete().eq('user_id', syncKey);
+    if (delRecErr) throw delRecErr;
     if (records.length > 0) {
       const recs = records.map(r => ({
         user_id: syncKey,
@@ -918,11 +921,13 @@ async function syncToCloud() {
         venue: r.venue,
         notes: r.notes
       }));
-      await supabaseClient.from('records').insert(recs);
+      const { error: insRecErr } = await supabaseClient.from('records').insert(recs);
+      if (insRecErr) throw insRecErr;
     }
 
     // Push achievements
-    await supabaseClient.from('achievements').delete().eq('user_id', syncKey);
+    const { error: delAchErr } = await supabaseClient.from('achievements').delete().eq('user_id', syncKey);
+    if (delAchErr) throw delAchErr;
     if (achievements.length > 0) {
       const achs = achievements.map(a => ({
         user_id: syncKey,
@@ -930,10 +935,12 @@ async function syncToCloud() {
         badge_name: a.badgeName,
         date: a.date
       }));
-      await supabaseClient.from('achievements').insert(achs);
+      const { error: insAchErr } = await supabaseClient.from('achievements').insert(achs);
+      if (insAchErr) throw insAchErr;
     }
   } catch (err) {
     console.error('Sync to cloud failed:', err);
+    toast('同步失败：' + (err.message || '未知错误'));
   }
 }
 
@@ -1005,6 +1012,7 @@ async function syncFromCloud() {
     }
   } catch (err) {
     console.error('Sync from cloud failed:', err);
+    toast('拉取数据失败：' + (err.message || '未知错误'));
   }
 }
 
