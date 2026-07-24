@@ -18,6 +18,29 @@
   <script src="js/supabase.min.js"></script>
 </head>
 <body>
+  <!-- Login Screen -->
+  <div id="loginScreen" style="position:fixed;inset:0;background:var(--teal-bg);z-index:500;display:none;align-items:center;justify-content:center;padding:1rem;">
+    <div style="background:var(--card-bg);border-radius:16px;padding:2rem 1.5rem;width:100%;max-width:360px;box-shadow:0 4px 20px rgba(0,0,0,0.08);border:1px solid var(--border);">
+      <div style="text-align:center;margin-bottom:1.5rem;">
+        <div style="font-size:2.5rem;margin-bottom:0.5rem;">🏊</div>
+        <h2 style="font-size:1.2rem;color:var(--text);">SwimGrowth</h2>
+        <p style="font-size:0.8rem;color:var(--text-secondary);margin-top:4px;">登录以同步你的游泳记录</p>
+      </div>
+      <form id="loginForm">
+        <div class="form-group">
+          <label for="loginUser">用户名</label>
+          <input type="text" id="loginUser" placeholder="输入用户名" required style="font-size:1rem;">
+        </div>
+        <div class="form-group">
+          <label for="loginPass">密码</label>
+          <input type="password" id="loginPass" placeholder="输入密码" required style="font-size:1rem;">
+        </div>
+        <button type="submit" class="btn btn-primary btn-block" style="margin-top:0.5rem;">登录 / 注册</button>
+      </form>
+      <p style="font-size:0.75rem;color:var(--text-secondary);text-align:center;margin-top:1rem;line-height:1.5;">新用户直接输入用户名和密码即可自动注册<br>数据仅属于你，不同用户完全隔离</p>
+    </div>
+  </div>
+
   <!-- Install Banner -->
   <div class="install-banner" id="installBanner">
     <p>添加到主屏幕，像 App 一样使用</p>

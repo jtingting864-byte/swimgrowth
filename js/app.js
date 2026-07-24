@@ -14,13 +14,35 @@ let chartInstance = null;
 let recordFilter = 'all';
 let editingRecordId = null;
 let deferredPrompt = null;
-const DEFAULT_SYNC_KEY = 'SWIMGROWTH';
-let syncKey = localStorage.getItem('swimgrowth_sync_key') || DEFAULT_SYNC_KEY;
+let syncKey = localStorage.getItem('swimgrowth_username') || '';
+let currentUser = localStorage.getItem('swimgrowth_username') || '';
 
 // --- Supabase ---
 const SUPABASE_URL = 'https://tpnjuovywhpzfkjacjkh.supabase.co';
 const SUPABASE_KEY = 'sb_publishable_12I7Pc_UxjDm21_igAYrgQ_Ee0SXUKl';
 let supabaseClient = null;
+
+// --- Auth Helpers ---
+function hashPass(str) {
+  let h = 0;
+  for (let i = 0; i < str.length; i++) {
+    h = ((h << 5) - h) + str.charCodeAt(i);
+    h |= 0;
+  }
+  return String(Math.abs(h));
+}
+
+function isLoggedIn() {
+  return !!currentUser && !!localStorage.getItem('swimgrowth_token');
+}
+
+function showLogin() {
+  $('#loginScreen').style.display = 'flex';
+}
+
+function hideLogin() {
+  $('#loginScreen').style.display = 'none';
+}
 
 // --- Constants ---
 const STROKES = ['自由泳','蛙泳','仰泳','蝶泳','混合泳'];
@@ -92,6 +114,82 @@ async function init() {
     navigator.serviceWorker.register('sw.js').catch(() => {});
   }
 
+  // Init Supabase client
+  if (window.supabase && window.supabase.createClient) {
+    supabaseClient = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
+  }
+
+  // Login form
+  $('#loginForm').addEventListener('submit', handleLogin);
+
+  // Check login state
+  if (!isLoggedIn()) {
+    showLogin();
+    return;
+  }
+
+  // Already logged in
+  await bootApp();
+}
+
+async function handleLogin(e) {
+  e.preventDefault();
+  const username = $('#loginUser').value.trim();
+  const password = $('#loginPass').value;
+  if (!username || !password) { toast('请输入用户名和密码'); return; }
+
+  const passHash = hashPass(password);
+
+  try {
+    // Check if user exists
+    const { data: existing, error } = await supabaseClient
+      .from('users').select('*').eq('username', username).single();
+
+    if (error && error.code !== 'PGRST116') {
+      toast('登录失败：' + error.message);
+      return;
+    }
+
+    if (existing) {
+      // Login
+      if (existing.password_hash !== passHash) {
+        toast('密码错误');
+        return;
+      }
+    } else {
+      // Register new user
+      const { error: regErr } = await supabaseClient
+        .from('users').insert({ username, password_hash: passHash });
+      if (regErr) {
+        toast('注册失败：' + regErr.message);
+        return;
+      }
+    }
+
+    // Save login state
+    currentUser = username;
+    syncKey = username;
+    localStorage.setItem('swimgrowth_username', username);
+    localStorage.setItem('swimgrowth_token', passHash);
+
+    hideLogin();
+    await bootApp();
+    toast(existing ? '登录成功' : '注册成功');
+  } catch (err) {
+    toast('网络错误：' + err.message);
+  }
+}
+
+async function logout() {
+  if (!confirm('确定要退出登录吗？本地数据不会被删除。')) return;
+  currentUser = '';
+  syncKey = '';
+  localStorage.removeItem('swimgrowth_username');
+  localStorage.removeItem('swimgrowth_token');
+  location.reload();
+}
+
+async function bootApp() {
   // PWA install prompt
   window.addEventListener('beforeinstallprompt', e => {
     e.preventDefault();
@@ -140,11 +238,6 @@ async function init() {
   // Forms
   $('#recordForm').addEventListener('submit', saveRecord);
   $('#swimmerForm').addEventListener('submit', saveSwimmer);
-
-  // Init Supabase client
-  if (window.supabase && window.supabase.createClient) {
-    supabaseClient = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
-  }
 
   // Auto sync on startup
   await autoSync();
@@ -600,10 +693,10 @@ async function renderSettings() {
     </div>
     <div class="setting-row" style="border-bottom:none;">
       <div>
-        <div class="setting-label">云同步密钥</div>
-        <div class="setting-desc" style="font-family:monospace;font-weight:700;color:var(--teal);font-size:0.85rem;">${syncKey || '未生成'}</div>
+        <div class="setting-label">当前用户</div>
+        <div class="setting-desc" style="font-weight:700;color:var(--teal);">${currentUser}</div>
       </div>
-      <button class="btn btn-sm btn-secondary" onclick="changeSyncKey()">恢复</button>
+      <button class="btn btn-sm btn-secondary" onclick="logout()">退出登录</button>
     </div>
   </div>`;
 
@@ -873,18 +966,8 @@ async function checkAchievements() {
 }
 
 // --- Cloud Sync ---
-function generateSyncKey() {
-  const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
-  let key = '';
-  for (let i = 0; i < 8; i++) key += chars[Math.floor(Math.random() * chars.length)];
-  return key;
-}
-
 async function autoSync() {
-  if (!supabaseClient) return;
-  if (!localStorage.getItem('swimgrowth_sync_key')) {
-    localStorage.setItem('swimgrowth_sync_key', syncKey);
-  }
+  if (!supabaseClient || !syncKey) return;
   await syncFromCloud();
 }
 
@@ -1014,28 +1097,6 @@ async function syncFromCloud() {
     console.error('Sync from cloud failed:', err);
     toast('拉取数据失败：' + (err.message || '未知错误'));
   }
-}
-
-async function manualSync() {
-  if (!supabaseClient) { toast('云同步不可用'); return; }
-  toast('正在同步...');
-  await syncToCloud();
-  await syncFromCloud();
-  toast('同步完成');
-  showTab('home');
-}
-
-async function changeSyncKey() {
-  const newKey = prompt('请输入同步密钥（留空自动生成）：', syncKey);
-  if (newKey === null) return;
-  const key = newKey.trim() || generateSyncKey();
-  syncKey = key;
-  localStorage.setItem('swimgrowth_sync_key', syncKey);
-  toast('密钥已更新，正在同步...');
-  await syncFromCloud();
-  toast('同步完成');
-  renderSettings();
-  showTab('home');
 }
 
 // --- Boot ---
