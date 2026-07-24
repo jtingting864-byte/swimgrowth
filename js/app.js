@@ -974,16 +974,16 @@ async function autoSync() {
 async function syncToCloud() {
   if (!supabaseClient || !syncKey) return;
   try {
-    const swimmers = await db.swimmers.toArray();
-    const records = await db.records.toArray();
-    const achievements = await db.achievements.toArray();
+    const swimmer = await db.swimmers.get(currentSwimmer.id);
+    const records = await db.records.where('swimmerId').equals(currentSwimmer.id).toArray();
+    const achievements = await db.achievements.where('swimmerId').equals(currentSwimmer.id).toArray();
 
-    // Push swimmers (delete all then insert)
+    // Push swimmer (delete all then insert)
     const { error: delSwimErr } = await supabaseClient.from('swimmers').delete().eq('user_id', syncKey);
     if (delSwimErr) throw delSwimErr;
-    if (swimmers.length > 0) {
+    if (swimmer) {
       const { error: insSwimErr } = await supabaseClient.from('swimmers').insert(
-        swimmers.map(s => ({ user_id: syncKey, name: s.name, birth_date: s.birthDate, gender: s.gender, club: s.club }))
+        { user_id: syncKey, name: swimmer.name, birth_date: swimmer.birthDate, gender: swimmer.gender, club: swimmer.club }
       );
       if (insSwimErr) throw insSwimErr;
     }
@@ -1048,22 +1048,24 @@ async function syncFromCloud() {
     if (achievementsErr) throw achievementsErr;
 
     // If cloud has data, merge to local
+    let localSwimmerId = null;
     if (swimmersData && swimmersData.length > 0) {
       await db.swimmers.clear();
       for (const s of swimmersData) {
-        await db.swimmers.add({
+        const newId = await db.swimmers.add({
           name: s.name || '小泳者',
           birthDate: s.birth_date || '',
           gender: s.gender || '',
           club: s.club || ''
         });
+        if (localSwimmerId === null) localSwimmerId = newId;
       }
     }
 
     if (recordsData && recordsData.length > 0) {
       await db.records.clear();
       const recs = recordsData.map(r => ({
-        swimmerId: r.swimmer_id || 1,
+        swimmerId: localSwimmerId || 1,
         type: r.type,
         date: r.date,
         eventName: r.event_name,
@@ -1082,7 +1084,7 @@ async function syncFromCloud() {
     if (achievementsData && achievementsData.length > 0) {
       await db.achievements.clear();
       const achs = achievementsData.map(a => ({
-        swimmerId: 1,
+        swimmerId: localSwimmerId || 1,
         badgeId: a.badge_id,
         badgeName: a.badge_name,
         date: a.date
