@@ -14,7 +14,8 @@ let chartInstance = null;
 let recordFilter = 'all';
 let editingRecordId = null;
 let deferredPrompt = null;
-let syncKey = localStorage.getItem('swimgrowth_sync_key') || '';
+const DEFAULT_SYNC_KEY = 'SWIMGROWTH';
+let syncKey = localStorage.getItem('swimgrowth_sync_key') || DEFAULT_SYNC_KEY;
 
 // --- Supabase ---
 const SUPABASE_URL = 'https://tpnjuovywhpzfkjacjkh.supabase.co';
@@ -881,8 +882,7 @@ function generateSyncKey() {
 
 async function autoSync() {
   if (!supabaseClient) return;
-  if (!syncKey) {
-    syncKey = generateSyncKey();
+  if (!localStorage.getItem('swimgrowth_sync_key')) {
     localStorage.setItem('swimgrowth_sync_key', syncKey);
   }
   await syncFromCloud();
