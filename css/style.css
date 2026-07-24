@@ -113,6 +113,31 @@ body {
 .form-row { display: grid; grid-template-columns: 1fr 1fr; gap: 0.7rem; }
 .form-row-3 { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 0.7rem; }
 
+/* Radio buttons */
+.radio-group {
+  display: flex; gap: 0.5rem;
+}
+.radio-option {
+  flex: 1; text-align: center;
+  padding: 0.6rem 0.4rem;
+  border: 2px solid var(--border);
+  border-radius: 10px;
+  cursor: pointer;
+  font-size: 0.85rem; font-weight: 600;
+  color: var(--text-secondary);
+  transition: all 0.15s;
+  -webkit-tap-highlight-color: transparent;
+}
+.radio-option input[type="radio"] {
+  position: absolute; opacity: 0; width: 0; height: 0;
+}
+.radio-option.active {
+  border-color: var(--teal);
+  background: var(--teal-bg2);
+  color: var(--teal);
+}
+.radio-option:active { transform: scale(0.97); }
+
 /* === Record List === */
 .record-item {
   display: flex; align-items: center; gap: 0.8rem;
@@ -146,9 +171,60 @@ body {
 .empty-state p { font-size: 0.85rem; }
 
 /* === Chart === */
-.chart-container { width: 100%; min-height: 320px; }
-.chart-filters { display: flex; gap: 0.5rem; margin-bottom: 0.8rem; flex-wrap: wrap; }
-.chart-filters select { padding: 0.4rem 0.7rem; border-radius: 8px; border: 1.5px solid var(--border); font-size: 0.85rem; background: var(--card-bg); }
+.chart-container { width: 100%; min-height: 340px; }
+.chart-filters { display: flex; gap: 0.5rem; margin-bottom: 1rem; flex-wrap: wrap; }
+.chart-filters select {
+  padding: 0.55rem 0.9rem; border-radius: 10px;
+  border: 1.5px solid var(--border); font-size: 0.9rem;
+  background: var(--card-bg); color: var(--text);
+  font-weight: 600; flex: 1; min-width: 120px;
+}
+.chart-card {
+  background: var(--card-bg);
+  border-radius: 16px;
+  padding: 1.2rem;
+  margin-bottom: 1rem;
+  box-shadow: 0 2px 8px rgba(0,0,0,0.06);
+  border: 1px solid var(--border);
+}
+.chart-card .chart-title {
+  font-size: 1.05rem; font-weight: 700;
+  color: var(--text); margin-bottom: 0.3rem;
+}
+.chart-card .chart-subtitle {
+  font-size: 0.8rem; color: var(--text-secondary);
+  margin-bottom: 1rem;
+}
+
+/* === PB Card === */
+.pb-card {
+  background: linear-gradient(135deg, var(--teal-bg2) 0%, var(--teal-bg) 100%);
+  border-radius: 16px;
+  padding: 1.2rem;
+  margin-bottom: 1rem;
+  border: 1.5px solid var(--border);
+}
+.pb-card h3 {
+  font-size: 1rem; font-weight: 700; color: var(--text);
+  margin-bottom: 0.8rem;
+}
+.pb-item {
+  display: flex; align-items: center; justify-content: space-between;
+  padding: 0.7rem 0;
+  border-bottom: 1px solid rgba(0,0,0,0.06);
+}
+.pb-item:last-child { border-bottom: none; }
+.pb-item .pb-name { font-size: 0.9rem; font-weight: 600; color: var(--text); }
+.pb-item .pb-time {
+  font-size: 1.1rem; font-weight: 700; color: var(--teal);
+  font-variant-numeric: tabular-nums;
+}
+.pb-item .pb-badge {
+  background: var(--teal); color: white;
+  font-size: 0.7rem; font-weight: 700;
+  padding: 3px 10px; border-radius: 20px;
+  margin-left: 0.5rem;
+}
 
 /* === Achievements === */
 .achieve-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 0.6rem; }

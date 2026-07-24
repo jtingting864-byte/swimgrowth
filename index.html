@@ -38,7 +38,20 @@
 
   <!-- Page: Charts -->
   <div class="page" id="page-charts">
-    <div id="chartsContent"></div>
+    <div id="chartsContent">
+      <!-- Chart card -->
+      <div class="chart-card">
+        <div class="chart-title" id="chartTitle">成绩趋势</div>
+        <div class="chart-subtitle" id="chartSubtitle">选择泳姿和距离查看成长曲线</div>
+        <div class="chart-filters" id="chartFilters"></div>
+        <div class="chart-container" id="mainChart"></div>
+      </div>
+      <!-- PB card -->
+      <div class="pb-card" id="pbCard">
+        <h3><span style="margin-right:4px;">&#127942;</span>个人最佳 (PB)</h3>
+        <div id="pbList"></div>
+      </div>
+    </div>
   </div>
 
   <!-- Page: Settings -->
@@ -77,15 +90,15 @@
         <input type="hidden" id="recordId">
         <div class="form-group">
           <label>记录类型</label>
-          <div class="form-row-3">
-            <label style="display:flex;align-items:center;gap:4px;cursor:pointer;font-size:0.85rem;font-weight:500;">
-              <input type="radio" name="type" value="competition" checked style="width:auto;"> 比赛
+          <div class="radio-group">
+            <label class="radio-option active" data-value="competition">
+              <input type="radio" name="type" value="competition" checked> 比赛
             </label>
-            <label style="display:flex;align-items:center;gap:4px;cursor:pointer;font-size:0.85rem;font-weight:500;">
-              <input type="radio" name="type" value="training" style="width:auto;"> 训练
+            <label class="radio-option" data-value="training">
+              <input type="radio" name="type" value="training"> 训练
             </label>
-            <label style="display:flex;align-items:center;gap:4px;cursor:pointer;font-size:0.85rem;font-weight:500;">
-              <input type="radio" name="type" value="test" style="width:auto;"> 测试
+            <label class="radio-option" data-value="test">
+              <input type="radio" name="type" value="test"> 测试
             </label>
           </div>
         </div>

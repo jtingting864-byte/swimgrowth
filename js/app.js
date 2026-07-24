@@ -121,6 +121,15 @@ async function init() {
   $('#recordModal').addEventListener('click', e => { if (e.target === $('#recordModal')) closeRecordModal(); });
   $('#swimmerModal').addEventListener('click', e => { if (e.target === $('#swimmerModal')) closeSwimmerModal(); });
 
+  // Radio button click handling
+  $$('.radio-option').forEach(opt => {
+    opt.addEventListener('click', () => {
+      $$('.radio-option').forEach(o => o.classList.remove('active'));
+      opt.classList.add('active');
+      opt.querySelector('input[type="radio"]').checked = true;
+    });
+  });
+
   // Forms
   $('#recordForm').addEventListener('submit', saveRecord);
   $('#swimmerForm').addEventListener('submit', saveSwimmer);
@@ -283,8 +292,8 @@ function renderRecordItem(r, showActions) {
 
 // --- Charts ---
 async function renderCharts() {
-  const container = $('#chartsContent');
   const records = await db.records.where('swimmerId').equals(currentSwimmer.id).sortBy('date');
+  window._chartRecords = records;
 
   // Get unique stroke-distance combos
   const combos = [...new Set(records.map(r => `${r.stroke}-${r.distance}`))];
@@ -293,35 +302,51 @@ async function renderCharts() {
     return `<option value="${c}">${s} ${d}m</option>`;
   }).join('');
 
-  let html = '';
-  html += `<div class="card">
-    <div class="chart-filters">
-      <select id="chartCombo" onchange="renderChart()">${comboOptions || '<option>暂无数据</option>'}</select>
-      <select id="chartType" onchange="renderChart()">
-        <option value="trend">成绩趋势</option>
-        <option value="dist">距离分布</option>
-      </select>
-    </div>
-    <div class="chart-container" id="mainChart"></div>
-  </div>`;
+  // Fill filters
+  const filterHtml = `
+    <select id="chartCombo" onchange="updateChartInfo();renderChart()">${comboOptions || '<option>暂无数据</option>'}</select>
+    <select id="chartType" onchange="updateChartInfo();renderChart()">
+      <option value="trend">成绩趋势</option>
+      <option value="dist">距离分布</option>
+    </select>
+  `;
+  $('#chartFilters').innerHTML = filterHtml;
 
-  // PB milestones
-  html += `<div class="card">
-    <h3><span class="icon">🎯</span>个人最佳 (PB)</h3>`;
+  // Update title/subtitle
+  updateChartInfo();
+
+  // PB list
+  const pbList = $('#pbList');
   if (records.length === 0) {
-    html += `<div class="empty-state" style="padding:1rem 0;"><p>添加记录后将显示 PB 里程碑</p></div>`;
+    pbList.innerHTML = `<div style="color:var(--text-secondary);font-size:0.85rem;padding:0.5rem 0;">添加记录后将显示 PB 里程碑</div>`;
   } else {
     const pbs = calcPBs(records);
-    html += pbs.map(pb => `<div class="record-item" style="padding:0.6rem 0.2rem;">
-      <div class="record-main"><div class="record-title">${pb.key}</div></div>
-      <div class="record-time">${formatTime(pb.time)}</div>
-      <span class="record-badge badge-comp">PB</span>
-    </div>`).join('');
+    pbList.innerHTML = pbs.map(pb => `
+      <div class="pb-item">
+        <span class="pb-name">${pb.key}</span>
+        <div style="display:flex;align-items:center;">
+          <span class="pb-time">${pb.time.toFixed(2)}<span style="font-size:0.75rem;color:var(--text-secondary);margin-left:2px;">秒</span></span>
+          <span class="pb-badge">PB</span>
+        </div>
+      </div>
+    `).join('');
   }
-  html += `</div>`;
 
-  container.innerHTML = html;
   if (combos.length > 0) renderChart();
+}
+
+function updateChartInfo() {
+  const type = $('#chartType')?.value || 'trend';
+  const combo = $('#chartCombo')?.value || '';
+  const title = type === 'trend' ? '成绩趋势' : '距离分布';
+  let subtitle = '选择泳姿和距离查看成长曲线';
+  if (combo && combo !== '暂无数据') {
+    const [s,d] = combo.split('-');
+    const count = (window._chartRecords || []).filter(r => r.stroke === s && r.distance === parseInt(d,10)).length;
+    subtitle = `${s} ${d}m — 共 ${count} 条记录`;
+  }
+  $('#chartTitle').textContent = title;
+  $('#chartSubtitle').textContent = subtitle;
 }
 
 function calcPBs(records) {
@@ -354,63 +379,82 @@ function renderChart() {
       chartInstance.setOption({
         animation: false,
         tooltip: { trigger: 'item', appendToBody: true },
-        color: ['#0d9488','#06b6d4','#f59e0b'],
+        color: ['#3d8b8a','#5ba3a1','#c9984a'],
         series: [{
           type: 'pie', radius: ['40%','70%'],
           data: Object.entries(distData).map(([k,v]) => ({ name:typeLabel(k), value:v })),
-          label: { color: '#1a2e35' }
+          label: { color: '#1e2933', fontSize: 13, fontWeight: 600 }
         }]
       });
     } else {
-      const dates = data.map(r => formatDate(r.date));
+      // 简化日期格式：只显示月/日
+      const dates = data.map(r => {
+        const d = new Date(r.date);
+        return `${d.getMonth()+1}/${d.getDate()}`;
+      });
       const times = data.map(r => r.time);
       const minTime = Math.min(...times);
+      const maxTime = Math.max(...times);
+      // Y轴范围：稍微扩展一点，让图表不贴边
+      const yMin = Math.floor(minTime * 0.95);
+      const yMax = Math.ceil(maxTime * 1.05);
 
       chartInstance.setOption({
         animation: false,
         tooltip: {
           trigger: 'axis', appendToBody: true,
+          backgroundColor: 'rgba(30,41,51,0.92)',
+          borderColor: 'transparent',
+          textStyle: { color: '#fff', fontSize: 13 },
           formatter: function(p) {
-            return p[0].axisValue + '<br/>成绩: <strong>' + formatTime(p[0].value) + '</strong>';
+            const idx = p[0].dataIndex;
+            const fullDate = data[idx].date;
+            const t = p[0].value;
+            return `<div style="font-weight:700;margin-bottom:4px;">${fullDate}</div>` +
+                   `<div>成绩：<span style="font-size:16px;font-weight:700;color:#5ba3a1;">${t.toFixed(2)}</span> <span style="font-size:12px;">秒</span></div>`;
           }
         },
-        grid: { left: 60, right: 20, top: 30, bottom: 40 },
+        grid: { left: 56, right: 20, top: 40, bottom: 30 },
         xAxis: {
           type: 'category', data: dates,
-          axisLabel: { color: '#5e8490', fontSize: 10, rotate: 30 },
-          axisLine: { lineStyle: { color: '#c8e0dc' } },
+          axisLabel: { color: '#7a9199', fontSize: 12, rotate: 0, interval: 'auto' },
+          axisLine: { lineStyle: { color: '#dce5e3' } },
           axisTick: { show: false }
         },
         yAxis: {
-          type: 'value', name: '成绩(秒)',
-          nameTextStyle: { color: '#5e8490', fontSize: 10 },
-          axisLabel: { color: '#5e8490', fontSize: 10, formatter: v => formatTime(v) },
+          type: 'value',
+          name: '秒',
+          nameTextStyle: { color: '#7a9199', fontSize: 12, fontWeight: 600, padding: [0,0,0,-30] },
+          min: yMin,
+          max: yMax,
+          axisLabel: {
+            color: '#7a9199', fontSize: 12, fontWeight: 500,
+            formatter: v => v.toFixed(1)
+          },
           axisLine: { show: false },
-          splitLine: { lineStyle: { color: '#c8e0dc', type: 'dashed' } }
+          splitLine: { lineStyle: { color: '#eaf0ef', type: 'solid' } }
         },
         series: [{
-          type: 'line', data: times, smooth: true,
-          symbol: 'circle', symbolSize: 8,
-          lineStyle: { color: '#0d9488', width: 3 },
-          itemStyle: { color: '#0d9488', borderColor: '#fff', borderWidth: 2 },
+          type: 'line', data: times, smooth: 0.35,
+          symbol: 'circle', symbolSize: 10,
+          lineStyle: { color: '#3d8b8a', width: 3.5 },
+          itemStyle: { color: '#3d8b8a', borderColor: '#fff', borderWidth: 2.5 },
           areaStyle: {
             color: { type: 'linear', x:0, y:0, x2:0, y2:1,
-              colorStops: [{ offset:0, color:'#0d948840' }, { offset:1, color:'#0d948805' }]
+              colorStops: [
+                { offset:0, color:'rgba(61,139,138,0.18)' },
+                { offset:0.6, color:'rgba(61,139,138,0.05)' },
+                { offset:1, color:'rgba(61,139,138,0)' }
+              ]
             }
           },
           markPoint: {
-            data: [{ type:'min', name:'PB' }],
-            symbol: 'pin', symbolSize: 36,
-            label: { fontSize: 9, fontWeight: 700 },
-            itemStyle: { color: '#0d9488' }
-          },
-          markLine: {
-            silent: true,
-            data: [{
-              yAxis: minTime,
-              label: { formatter: 'PB ' + formatTime(minTime), position: 'insideEndTop', color: '#0d9488', fontSize: 9 },
-              lineStyle: { color: '#0d9488', type: 'dashed' }
-            }]
+            data: [{ type:'min', name:'PB', symbol:'circle', symbolSize:22 }],
+            label: {
+              show: true, position: 'top', distance: 8,
+              formatter: '{b}', fontSize: 12, fontWeight: 700, color: '#c45c5c'
+            },
+            itemStyle: { color: '#c45c5c', borderColor:'#fff', borderWidth:3 }
           }
         }]
       });
