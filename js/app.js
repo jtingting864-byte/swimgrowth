@@ -555,13 +555,13 @@ async function renderSettings() {
   html += `<div class="card">
     <h3><span class="icon">💾</span>数据管理</h3>
     <div class="setting-row">
-      <div><div class="setting-label">导出数据</div><div class="setting-desc">将所有记录导出为 JSON 文件</div></div>
-      <button class="btn btn-sm btn-secondary" onclick="exportData()">导出</button>
+      <div><div class="setting-label">导出 Excel</div><div class="setting-desc">将所有记录导出为 Excel 表格</div></div>
+      <button class="btn btn-sm btn-secondary" onclick="exportExcel()">导出</button>
     </div>
     <div class="setting-row">
-      <div><div class="setting-label">导入数据</div><div class="setting-desc">从 JSON 文件恢复数据</div></div>
+      <div><div class="setting-label">导入 Excel</div><div class="setting-desc">从 Excel 表格恢复数据</div></div>
       <button class="btn btn-sm btn-secondary" onclick="$('#importFile').click()">导入</button>
-      <input type="file" id="importFile" accept=".json" style="display:none" onchange="importData(this)">
+      <input type="file" id="importFile" accept=".xlsx,.xls" style="display:none" onchange="importExcel(this)">
     </div>
     <div class="setting-row">
       <div><div class="setting-label">清除所有数据</div><div class="setting-desc">删除所有记录和成就（不可恢复）</div></div>
@@ -678,39 +678,95 @@ async function saveSwimmer(e) {
   renderSettings();
 }
 
-// --- Data Import/Export ---
-async function exportData() {
-  const swimmers = await db.swimmers.toArray();
-  const records = await db.records.toArray();
-  const achievements = await db.achievements.toArray();
-  const data = { swimmers, records, achievements, version: 1, exportedAt: new Date().toISOString() };
-  const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
-  const url = URL.createObjectURL(blob);
-  const a = document.createElement('a');
-  a.href = url;
-  a.download = `swimgrowth-backup-${todayStr()}.json`;
-  a.click();
-  URL.revokeObjectURL(url);
-  toast('数据已导出');
+// --- Data Import/Export (Excel) ---
+async function exportExcel() {
+  const records = await db.records.where('swimmerId').equals(currentSwimmer.id).sortBy('date');
+  const swimmer = await db.swimmers.get(currentSwimmer.id);
+
+  // Build worksheet data
+  const wsData = [
+    ['SwimGrowth 游泳成长记录'],
+    ['运动员：' + (swimmer?.name || ''), '俱乐部：' + (swimmer?.club || ''), '导出日期：' + todayStr()],
+    [],
+    ['日期', '类型', '赛事/训练名称', '泳姿', '距离(m)', '成绩(秒)', '名次', '组别', '场地', '备注']
+  ];
+
+  records.forEach(r => {
+    wsData.push([
+      r.date,
+      typeLabel(r.type),
+      r.eventName || '',
+      r.stroke,
+      r.distance,
+      r.time,
+      r.rank || '',
+      r.group || '',
+      r.venue || '',
+      r.notes || ''
+    ]);
+  });
+
+  const wb = XLSX.utils.book_new();
+  const ws = XLSX.utils.aoa_to_sheet(wsData);
+
+  // Set column widths
+  ws['!cols'] = [
+    { wch: 12 }, { wch: 8 }, { wch: 22 }, { wch: 8 },
+    { wch: 10 }, { wch: 10 }, { wch: 6 }, { wch: 8 }, { wch: 18 }, { wch: 24 }
+  ];
+
+  XLSX.utils.book_append_sheet(wb, ws, '游泳记录');
+  XLSX.writeFile(wb, `SwimGrowth-${swimmer?.name || '记录'}-${todayStr()}.xlsx`);
+  toast('Excel 已导出');
 }
 
-async function importData(input) {
+async function importExcel(input) {
   const file = input.files[0];
   if (!file) return;
-  const text = await file.text();
+
   try {
-    const data = JSON.parse(text);
-    if (!data.swimmers || !data.records) { toast('无效的数据文件'); return; }
-    if (!confirm('导入将覆盖现有数据，确定继续？')) return;
-    await db.swimmers.clear();
+    const data = await file.arrayBuffer();
+    const wb = XLSX.read(data, { type: 'array' });
+    const ws = wb.Sheets[wb.SheetNames[0]];
+    const rows = XLSX.utils.sheet_to_json(ws, { header: 1, defval: '' });
+
+    // Skip header rows (first 4 rows are title/info/empty/header)
+    const dataRows = rows.slice(4);
+    if (dataRows.length === 0) { toast('Excel 中没有找到数据'); return; }
+
+    if (!confirm(`检测到 ${dataRows.length} 条记录，导入将覆盖现有数据，确定继续？`)) return;
+
+    const typeMap = { '比赛': 'competition', '训练': 'training', '测试': 'test' };
+    const newRecords = [];
+
+    dataRows.forEach((row, idx) => {
+      if (!row[0]) return; // skip empty rows
+      const timeVal = parseFloat(row[5]);
+      if (!timeVal || timeVal <= 0) return;
+
+      newRecords.push({
+        swimmerId: currentSwimmer.id,
+        type: typeMap[row[1]] || 'training',
+        date: row[0] || todayStr(),
+        eventName: row[2] || '',
+        stroke: row[3] || '自由泳',
+        distance: parseInt(row[4], 10) || 50,
+        time: timeVal,
+        rank: row[6] ? parseInt(row[6], 10) : null,
+        group: row[7] || null,
+        venue: row[8] || null,
+        notes: row[9] || null,
+        createdAt: new Date().toISOString()
+      });
+    });
+
     await db.records.clear();
     await db.achievements.clear();
-    await db.swimmers.bulkAdd(data.swimmers);
-    await db.records.bulkAdd(data.records);
-    if (data.achievements) await db.achievements.bulkAdd(data.achievements);
-    const swimmers = await db.swimmers.toArray();
-    currentSwimmer = swimmers[0];
-    toast('数据导入成功');
+    if (newRecords.length > 0) {
+      await db.records.bulkAdd(newRecords);
+    }
+    await checkAchievements();
+    toast(`成功导入 ${newRecords.length} 条记录`);
     showTab('home');
   } catch (err) {
     toast('导入失败：' + err.message);
