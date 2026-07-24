@@ -597,6 +597,13 @@ async function renderSettings() {
       <div><div class="setting-label">清除所有数据</div><div class="setting-desc">删除所有记录和成就（不可恢复）</div></div>
       <button class="btn btn-sm btn-danger" onclick="clearAllData()">清除</button>
     </div>
+    <div class="setting-row" style="border-bottom:none;">
+      <div>
+        <div class="setting-label">云同步密钥</div>
+        <div class="setting-desc" style="font-family:monospace;font-weight:700;color:var(--teal);font-size:0.85rem;">${syncKey || '未生成'}</div>
+      </div>
+      <button class="btn btn-sm btn-secondary" onclick="changeSyncKey()">恢复</button>
+    </div>
   </div>`;
 
   container.innerHTML = html;
